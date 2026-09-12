@@ -1,0 +1,368 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Online Auction System</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/sockjs-client@1/dist/sockjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/stompjs@2.3.3/lib/stomp.min.js"></script>
+    <style>
+        body { background-color: #f4f6f9; }
+        .card { border: none; box-shadow: 0 2px 10px rgba(0,0,0,0.08); }
+        .status-LIVE { background-color: #198754; }
+        .status-UPCOMING { background-color: #ffc107; color: #000; }
+        .status-CLOSED { background-color: #6c757d; }
+    </style>
+</head>
+<body>
+
+<nav class="navbar navbar-dark bg-primary mb-4">
+    <div class="container d-flex justify-content-between">
+        <span class="navbar-brand mb-0 h1">Online Auction System</span>
+        <div id="userInfo" class="text-white">
+            <span id="loggedInText">Not logged in</span>
+            <button id="logoutBtn" class="btn btn-sm btn-outline-light ms-2 d-none" onclick="logout()">Logout</button>
+        </div>
+    </div>
+</nav>
+
+<div class="container pb-5">
+
+    <!-- Login + Register -->
+    <div class="row g-4 mb-4">
+        <!-- Login -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Login</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" id="loginUsername" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="loginPassword" class="form-control">
+                    </div>
+                    <button class="btn btn-primary w-100" onclick="loginUser()">Login</button>
+                    <div id="loginMessage" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Register -->
+        <div class="col-md-6">
+            <div class="card">
+                <div class="card-header bg-white">
+                    <h5 class="mb-0">Register New User</h5>
+                </div>
+                <div class="card-body">
+                    <div class="mb-3">
+                        <label class="form-label">Username</label>
+                        <input type="text" id="regUsername" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Email</label>
+                        <input type="email" id="regEmail" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Password</label>
+                        <input type="password" id="regPassword" class="form-control">
+                    </div>
+                    <div class="mb-3">
+                        <label class="form-label">Role</label>
+                        <select id="regRole" class="form-select">
+                            <option value="BUYER">BUYER</option>
+                            <option value="SELLER">SELLER</option>
+                        </select>
+                    </div>
+                    <button class="btn btn-success w-100" onclick="registerUser()">Register</button>
+                    <div id="regMessage" class="mt-3"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Auction -->
+    <div class="card mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Create New Auction</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-6">
+                    <label class="form-label">Title</label>
+                    <input type="text" id="auctionTitle" class="form-control">
+                </div>
+                <div class="col-md-6">
+                    <label class="form-label">Starting Price (₹)</label>
+                    <input type="number" id="startingPrice" class="form-control">
+                </div>
+                <div class="col-md-12">
+                    <label class="form-label">Description</label>
+                    <textarea id="auctionDesc" class="form-control" rows="2"></textarea>
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Seller ID</label>
+                    <input type="number" id="sellerId" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">Start Time</label>
+                    <input type="datetime-local" id="startTime" class="form-control">
+                </div>
+                <div class="col-md-4">
+                    <label class="form-label">End Time</label>
+                    <input type="datetime-local" id="endTime" class="form-control">
+                </div>
+                <div class="col-md-12">
+                    <button class="btn btn-success" onclick="createAuction()">Create Auction</button>
+                </div>
+            </div>
+            <div id="auctionMessage" class="mt-3"></div>
+        </div>
+    </div>
+
+    <!-- Auctions List -->
+    <div class="card mb-4">
+        <div class="card-header bg-white d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">All Auctions</h5>
+            <button class="btn btn-sm btn-outline-primary" onclick="loadAuctions()">Refresh</button>
+        </div>
+        <div class="card-body">
+            <div id="auctionsList" class="row g-3"></div>
+        </div>
+    </div>
+
+    <!-- Place Bid -->
+    <div class="card mb-4">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Place a Bid</h5>
+        </div>
+        <div class="card-body">
+            <div class="row g-3">
+                <div class="col-md-3">
+                    <label class="form-label">Auction ID</label>
+                    <input type="number" id="bidAuctionId" class="form-control">
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Your User ID</label>
+                    <input type="number" id="bidderId" class="form-control" readonly>
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Bid Amount (₹)</label>
+                    <input type="number" id="bidAmount" class="form-control">
+                </div>
+                <div class="col-md-3 d-flex align-items-end">
+                    <button class="btn btn-warning w-100" onclick="placeBid()">Place Bid</button>
+                </div>
+            </div>
+            <div id="bidMessage" class="mt-3"></div>
+        </div>
+    </div>
+
+    <!-- Live Updates -->
+    <div class="card">
+        <div class="card-header bg-white">
+            <h5 class="mb-0">Live Bid Updates</h5>
+        </div>
+        <div class="card-body">
+            <ul id="liveBids" class="list-group list-group-flush"></ul>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API = "http://localhost:8090";
+    let stompClient = null;
+    let currentUser = null;
+
+    // Check if user is already logged in
+    window.onload = function() {
+        const savedUser = localStorage.getItem("currentUser");
+        if (savedUser) {
+            currentUser = JSON.parse(savedUser);
+            updateUserUI();
+        }
+        loadAuctions();
+    };
+
+    function updateUserUI() {
+        if (currentUser) {
+            document.getElementById("loggedInText").innerText = `Logged in as: ${currentUser.username} (ID: ${currentUser.id})`;
+            document.getElementById("logoutBtn").classList.remove("d-none");
+            document.getElementById("bidderId").value = currentUser.id;
+            document.getElementById("sellerId").value = currentUser.id;
+        } else {
+            document.getElementById("loggedInText").innerText = "Not logged in";
+            document.getElementById("logoutBtn").classList.add("d-none");
+            document.getElementById("bidderId").value = "";
+            document.getElementById("sellerId").value = "";
+        }
+    }
+
+    // ========== Login ==========
+    async function loginUser() {
+        const username = document.getElementById("loginUsername").value;
+        const password = document.getElementById("loginPassword").value;
+
+        const res = await fetch(`${API}/api/users/login?username=${username}&password=${password}`, {
+            method: "POST"
+        });
+
+        const msg = document.getElementById("loginMessage");
+        if (res.ok) {
+            currentUser = await res.json();
+            localStorage.setItem("currentUser", JSON.stringify(currentUser));
+            updateUserUI();
+            msg.innerHTML = `<div class="alert alert-success">Login successful!</div>`;
+        } else {
+            const err = await res.json();
+            msg.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        }
+    }
+
+    function logout() {
+        currentUser = null;
+        localStorage.removeItem("currentUser");
+        updateUserUI();
+    }
+
+    // ========== Register ==========
+    async function registerUser() {
+        const username = document.getElementById("regUsername").value;
+        const email = document.getElementById("regEmail").value;
+        const password = document.getElementById("regPassword").value;
+        const role = document.getElementById("regRole").value;
+
+        const res = await fetch(`${API}/api/users/register?username=${username}&email=${email}&password=${password}&role=${role}`, {
+            method: "POST"
+        });
+
+        const msg = document.getElementById("regMessage");
+        if (res.ok) {
+            const user = await res.json();
+            msg.innerHTML = `<div class="alert alert-success">Registered! Your User ID is <strong>${user.id}</strong>. You can now login.</div>`;
+        } else {
+            const err = await res.json();
+            msg.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        }
+    }
+
+    // ========== Create Auction ==========
+    async function createAuction() {
+        if (!currentUser) {
+            alert("Please login first!");
+            return;
+        }
+
+        const title = document.getElementById("auctionTitle").value;
+        const description = document.getElementById("auctionDesc").value;
+        const startingPrice = document.getElementById("startingPrice").value;
+        const sellerId = currentUser.id;
+        let startTime = document.getElementById("startTime").value + ":00";
+        let endTime = document.getElementById("endTime").value + ":00";
+
+        const url = `${API}/api/auctions?title=${encodeURIComponent(title)}&description=${encodeURIComponent(description)}&startingPrice=${startingPrice}&sellerId=${sellerId}&startTime=${startTime}&endTime=${endTime}`;
+
+        const res = await fetch(url, { method: "POST" });
+        const msg = document.getElementById("auctionMessage");
+
+        if (res.ok) {
+            const auction = await res.json();
+            msg.innerHTML = `<div class="alert alert-success">Auction created successfully! ID: ${auction.id}</div>`;
+            loadAuctions();
+        } else {
+            const err = await res.json();
+            msg.innerHTML = `<div class="alert alert-danger">${err.message || "Failed"}</div>`;
+        }
+    }
+
+    // ========== Load Auctions ==========
+    async function loadAuctions() {
+        const res = await fetch(`${API}/api/auctions`);
+        const auctions = await res.json();
+        const container = document.getElementById("auctionsList");
+        container.innerHTML = "";
+
+        auctions.forEach(a => {
+            const col = document.createElement("div");
+            col.className = "col-md-6 col-lg-4";
+            col.innerHTML = `
+                <div class="card h-100">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between">
+                            <h5 class="card-title">${a.title}</h5>
+                            <span class="badge status-${a.status}">${a.status}</span>
+                        </div>
+                        <p class="text-muted small">${a.description || ""}</p>
+                        <p class="mb-1"><strong>Current Price:</strong> ₹${a.currentPrice}</p>
+                        <p class="mb-1"><strong>Ends:</strong> ${a.endTime ? a.endTime.replace("T", " ").substring(0,16) : "-"}</p>
+                        <button class="btn btn-sm btn-outline-primary me-1" onclick="connectToAuction(${a.id})">Watch Live</button>
+                        ${a.status === 'UPCOMING' ? `<button class="btn btn-sm btn-success" onclick="startAuction(${a.id})">Start</button>` : ''}
+                    </div>
+                </div>
+            `;
+            container.appendChild(col);
+        });
+    }
+
+    async function startAuction(id) {
+        const res = await fetch(`${API}/api/auctions/${id}/start`, { method: "PUT" });
+        if (res.ok) {
+            alert("Auction started!");
+            loadAuctions();
+        } else {
+            const err = await res.json();
+            alert(err.message);
+        }
+    }
+
+    // ========== Place Bid ==========
+    async function placeBid() {
+        if (!currentUser) {
+            alert("Please login first!");
+            return;
+        }
+
+        const auctionId = document.getElementById("bidAuctionId").value;
+        const amount = document.getElementById("bidAmount").value;
+
+        const res = await fetch(`${API}/api/bids?auctionId=${auctionId}&bidderId=${currentUser.id}&amount=${amount}`, {
+            method: "POST"
+        });
+
+        const msg = document.getElementById("bidMessage");
+        if (res.ok) {
+            const bid = await res.json();
+            msg.innerHTML = `<div class="alert alert-success">Bid placed successfully: ₹${bid.amount}</div>`;
+            loadAuctions();
+        } else {
+            const err = await res.json();
+            msg.innerHTML = `<div class="alert alert-danger">${err.message}</div>`;
+        }
+    }
+
+    // ========== WebSocket ==========
+    function connectToAuction(auctionId) {
+        if (stompClient) stompClient.disconnect();
+
+        const socket = new SockJS(`${API}/ws`);
+        stompClient = Stomp.over(socket);
+        stompClient.debug = null;
+
+        stompClient.connect({}, () => {
+            stompClient.subscribe(`/topic/auction/${auctionId}`, (message) => {
+                const bid = JSON.parse(message.body);
+                const li = document.createElement("li");
+                li.className = "list-group-item";
+                li.innerHTML = `<strong>Auction ${auctionId}</strong> → ₹${bid.amount} by User ${bid.bidder.id}`;
+                document.getElementById("liveBids").prepend(li);
+            });
+            alert(`Now watching live updates for Auction ${auctionId}`);
+        });
+    }
+</script>
+</body>
+</html>
