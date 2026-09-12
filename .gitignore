@@ -9,8 +9,8 @@ target/
 *.iml
 .vscode/
 
-# Properties with secrets (optional)
-# src/main/resources/application.properties
-
 # Logs
 *.log
+
+# Hide sensitive config
+src/main/resources/application.properties
